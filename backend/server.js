@@ -3,9 +3,11 @@ const cors = require('cors');
 const app = express();
 const PORT = 3000;
 
+// Configuration des middlewares
 app.use(cors());
 app.use(express.json());
 
+// Base de données des questions (Thème Avengers)
 const quizData = [
     { id: 1, question: "What is Iron Man's real name?", options: ["Tony Stark", "Steve Rogers", "Bruce Banner", "Thor Odinson"], correctAnswer: "Tony Stark" },
     { id: 2, question: "Who is the leader of the Avengers?", options: ["Captain America", "Iron Man", "Thor", "Hulk"], correctAnswer: "Captain America" },
@@ -32,27 +34,36 @@ const quizData = [
     { id: 23, question: "What is the name of Thor's home planet?", options: ["Asgard", "Vanaheim", "Midgard", "Jotunheim"], correctAnswer: "Asgard" },
     { id: 24, question: "Who is the creator of Iron Man's armor?", options: ["Tony Stark", "Obadiah Stane", "Pepper Potts", "J.A.R.V.I.S."], correctAnswer: "Tony Stark" },
     { id: 25, question: "Who is the first member to die in Avengers: Infinity War?", options: ["Loki", "Vision", "Gamora", "Heimdall"], correctAnswer: "Loki" },
-    { id: 26, question: "What is the name of Thanos' daughter?", options: ["Ebony Maw", "Corvus Glaive", "Proxima Midnight", "Nebula"], correctAnswer: "Nebula" },
+    { id: 26, question: "What is the name of Thanos' daughter?", options: ["Gamora", "Corvus Glaive", "Proxima Midnight", "Nebula"], correctAnswer: "Nebula" },
     { id: 27, question: "What is the name of the realm of the dead?", options: ["Hel", "Valhalla", "Niflheim", "Muspelheim"], correctAnswer: "Hel" },
     { id: 28, question: "Who is the creator of War Machine's armor?", options: ["Tony Stark", "James Rhodes", "Obadiah Stane", "Pepper Potts"], correctAnswer: "Tony Stark" },
     { id: 29, question: "What is the name of the realm of the ice giants?", options: ["Jotunheim", "Asgard", "Vanaheim", "Midgard"], correctAnswer: "Jotunheim" },
     { id: 30, question: "Who is the leader of the Guardians of the Galaxy?", options: ["Star-Lord", "Rocket Raccoon", "Groot", "Drax"], correctAnswer: "Star-Lord" }
 ];
 
+// Route pour récupérer les questions (sans les réponses)
 app.get('/api/questions', (req, res) => {
     const safeQuestions = quizData.map(({correctAnswer, ...rest}) => rest);
     res.json(safeQuestions);
 });
 
+// Route pour vérifier la réponse envoyée par le frontend
 app.post('/api/check-answer', (req, res) => {
     const { id, answer } = req.body;
     const question = quizData.find(q => q.id === id);
+
     if (question) {
         const isCorrect = question.correctAnswer === answer;
-        res.json({ correct: isCorrect, correctResponse: question.correctAnswer });
+        res.json({
+            correct: isCorrect,
+            correctResponse: isCorrect ? null : question.correctAnswer
+        });
     } else {
-        res.status(404).send("Not found");
+        res.status(404).json({ message: "Question non trouvée" });
     }
 });
 
-app.listen(PORT, () => console.log(`🚀 Avengers Backend on port ${PORT}`));
+// Lancement du serveur
+app.listen(PORT, () => {
+    console.log(`🚀 Avengers Backend lancé sur http://localhost:${PORT}`);
+});

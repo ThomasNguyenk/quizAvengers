@@ -86,7 +86,6 @@ onMounted(fetchQuestions);
 <template>
   <div class="main-bg">
     <div class="headers" v-if="!quizOver">
-      <h1>Welcome to the Avengers Quiz!</h1>
       <h2>Test your knowledge of the Avengers universe!</h2>
       <h3>You are on a quiz with the Avengers theme!</h3>
       <h4 class="q-count">There are {{ questions.length }} Questions in this quiz!</h4>
