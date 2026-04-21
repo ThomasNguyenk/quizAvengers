@@ -5,45 +5,32 @@ import axios from 'axios';
 const questions = ref([]);
 const currentQuestionIndex = ref(0);
 const score = ref(0);
-const timeLeft = ref(30);
-const selectedAnswer = ref(null);
+const selectedAnswer = ref(null); // C'est cette variable qui débloque le bouton
 const feedbackMessage = ref("");
 const feedbackColor = ref("");
 const quizOver = ref(false);
 const loading = ref(true);
-let timerInterval = null;
 
-const currentQuestion = computed(() => questions.value[currentQuestionIndex.value] || {});
+const currentQuestion = computed(() => {
+  return questions.value[currentQuestionIndex.value] || { question: '', options: [] };
+});
 
 const fetchQuestions = async () => {
   try {
     const res = await axios.get('http://localhost:3000/api/questions');
     questions.value = res.data;
     loading.value = false;
-    startTimer();
   } catch (e) {
-    console.error("Erreur serveur");
+    console.error("Backend inaccessible sur le port 3000");
+    loading.value = false;
   }
 };
 
-const startTimer = () => {
-  clearInterval(timerInterval);
-  timeLeft.value = 30;
-  timerInterval = setInterval(() => {
-    if (timeLeft.value > 0) timeLeft.value--;
-    else submitAnswer(true); // Timeout
-  }, 1000);
-};
+const submitAnswer = async () => {
+  // Le bouton ne peut être cliqué que si selectedAnswer n'est pas nul
+  if (!selectedAnswer.value) return;
 
-const submitAnswer = async (isTimeout = false) => {
-  if (!selectedAnswer.value && !isTimeout) return alert("Please select an answer!");
-
-  clearInterval(timerInterval);
-
-  if (isTimeout) {
-    feedbackMessage.value = "Time's up!";
-    feedbackColor.value = "red";
-  } else {
+  try {
     const res = await axios.post('http://localhost:3000/api/check-answer', {
       id: currentQuestion.value.id,
       answer: selectedAnswer.value
@@ -51,33 +38,25 @@ const submitAnswer = async (isTimeout = false) => {
 
     if (res.data.correct) {
       score.value++;
-      feedbackMessage.value = "Correct answer!";
-      feedbackColor.value = "green";
+      feedbackMessage.value = "CORRECT !";
+      feedbackColor.value = "#00ff00";
     } else {
-      feedbackMessage.value = "Wrong answer...";
-      feedbackColor.value = "red";
+      feedbackMessage.value = "WRONG !";
+      feedbackColor.value = "#ff0000";
     }
+
+    setTimeout(() => {
+      feedbackMessage.value = "";
+      selectedAnswer.value = null; // On réinitialise pour la question suivante
+      if (currentQuestionIndex.value < questions.value.length - 1) {
+        currentQuestionIndex.value++;
+      } else {
+        quizOver.value = true;
+      }
+    }, 2000);
+  } catch (err) {
+    console.error(err);
   }
-
-  setTimeout(nextQuestion, 2000);
-};
-
-const nextQuestion = () => {
-  feedbackMessage.value = "";
-  selectedAnswer.value = null;
-  if (currentQuestionIndex.value < questions.value.length - 1) {
-    currentQuestionIndex.value++;
-    startTimer();
-  } else {
-    quizOver.value = true;
-  }
-};
-
-const restartQuiz = () => {
-  currentQuestionIndex.value = 0;
-  score.value = 0;
-  quizOver.value = false;
-  fetchQuestions();
 };
 
 onMounted(fetchQuestions);
@@ -85,41 +64,43 @@ onMounted(fetchQuestions);
 
 <template>
   <div class="main-bg">
-    <div class="headers" v-if="!quizOver">
-      <h2>Test your knowledge of the Avengers universe!</h2>
-      <h3>You are on a quiz with the Avengers theme!</h3>
-      <h4 class="q-count">There are {{ questions.length }} Questions in this quiz!</h4>
-    </div>
+    <div class="quiz-card">
 
-    <div class="container">
-      <div v-if="loading">Loading Avengers Data...</div>
+      <div v-if="loading"><h1>LOADING AVENGERS...</h1></div>
 
       <div v-else-if="!quizOver">
-        <div class="timer">Time remaining: {{ timeLeft }} seconds</div>
+        <h2 class="counter">Question {{ currentQuestionIndex + 1 }} / {{ questions.length }}</h2>
+        <div class="question-text">{{ currentQuestion.question }}</div>
 
-        <div class="question">{{ currentQuestion.question }}</div>
-
-        <div class="choices">
-          <div v-for="opt in currentQuestion.options" :key="opt" class="choice">
-            <label>
-              <input type="radio" :value="opt" v-model="selectedAnswer">
-              {{ opt }}
-            </label>
+        <div class="options-container">
+          <div
+              v-for="option in currentQuestion.options"
+              :key="option"
+              class="option-box"
+              :class="{ 'selected': selectedAnswer === option }"
+              @click="selectedAnswer = option"
+          >
+            {{ option }}
           </div>
         </div>
 
-        <div class="result" v-if="feedbackMessage" :style="{ color: feedbackColor }">
-          {{ feedbackMessage }}
-        </div>
+        <div class="feedback" :style="{ color: feedbackColor }">{{ feedbackMessage }}</div>
 
-        <button @click="submitAnswer(false)" :disabled="feedbackMessage">Submit Answer</button>
+        <button
+            class="submit-btn"
+            @click="submitAnswer"
+            :disabled="!selectedAnswer || !!feedbackMessage"
+        >
+          SUBMIT ANSWER
+        </button>
       </div>
 
-      <div v-else class="final">
-        <h1 style="color: white">- Quiz Finished! -</h1>
-        <div class="score">Your score: {{ score }} out of {{ questions.length }}</div>
-        <button @click="restartQuiz">Restart Quiz</button>
+      <div v-else class="final-screen">
+        <h1>MISSION ACCOMPLISHED</h1>
+        <p>Your Score: {{ score }} / {{ questions.length }}</p>
+        <button class="submit-btn" @click="window.location.reload()">RESTART</button>
       </div>
+
     </div>
   </div>
 </template>
@@ -127,79 +108,66 @@ onMounted(fetchQuestions);
 <style scoped>
 .main-bg {
   min-height: 100vh;
-  font-family: Arial, sans-serif;
   background-image: url('https://i.pinimg.com/originals/9b/56/72/9b567242873fcd6c8bc9c1fbcac05b39.jpg');
   background-size: cover;
-  background-position: center;
-  padding: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Arial Black', sans-serif;
 }
 
-h1, h2, h3, h4 {
-  text-align: center;
-  font-weight: bold;
-  background: linear-gradient(to right, #00b700, #1a009a);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  margin: 10px 0;
-}
-
-h1 { font-size: 3em; }
-.q-count { -webkit-text-fill-color: white; font-size: 1.5em; }
-
-.container {
-  width: 80%;
-  max-width: 800px;
-  margin: 50px auto;
-  padding: 40px;
+.quiz-card {
   background-image: url('https://img.freepik.com/vecteurs-libre/papier-peint-style-bande-dessinee_79603-1248.jpg');
   background-size: cover;
+  width: 500px;
+  padding: 30px;
+  border: 4px solid black;
   border-radius: 15px;
-  box-shadow: 0 0 20px white;
   text-align: center;
+  box-shadow: 10px 10px 0px red;
 }
 
-.timer { color: white; font-weight: bold; margin-bottom: 20px; font-size: 1.2em; }
-
-.question {
-  margin-bottom: 20px;
-  font-size: 1.8em;
-  font-weight: bold;
-  color: #ff0000;
-  text-shadow: 2px 2px black;
-}
-
-.choice {
-  margin: 15px 0;
-  font-size: 1.3em;
-  color: white;
-  background: rgba(0,0,0,0.5);
-  padding: 10px;
-  border-radius: 8px;
-}
-
-button {
-  padding: 15px 30px;
-  background-color: #ff0000;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 1.2em;
-  font-weight: bold;
-  margin-top: 20px;
-}
-
-button:hover { background-color: #cc0000; }
-
-.result {
-  margin-top: 20px;
-  font-size: 1.5em;
-  font-weight: bold;
-  background-color: rgba(255, 255, 255, 0.9);
+.question-text {
+  background: white;
   padding: 15px;
-  border-radius: 10px;
-  display: inline-block;
+  border: 3px solid black;
+  font-size: 1.2rem;
+  margin-bottom: 20px;
 }
 
-.score { color: white; font-size: 2em; margin: 20px; font-weight: bold; }
+.options-container { display: flex; flex-direction: column; gap: 10px; }
+
+.option-box {
+  background: black;
+  color: white;
+  padding: 12px;
+  border: 2px solid white;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+/* L'état bleu que tu vois sur ton image */
+.option-box.selected {
+  background: #007bff;
+  border: 2px solid yellow;
+}
+
+.feedback { height: 30px; margin: 10px; font-weight: bold; }
+
+.submit-btn {
+  width: 100%;
+  padding: 15px;
+  background: #ff0000; /* Devient ROUGE quand activé */
+  color: white;
+  border: 3px solid black;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+/* Ton problème actuel : le bouton est bloqué ici */
+.submit-btn:disabled {
+  background: #808080; /* GRIS comme sur ton image */
+  cursor: not-allowed;
+  opacity: 0.7;
+}
 </style>
